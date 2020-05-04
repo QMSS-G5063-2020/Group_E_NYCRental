@@ -6,6 +6,11 @@ knitr::opts_chunk$set(echo = FALSE)
 # Renter Review
 
 
+Data source: https://www.apartmentratings.com/ny/new-york/
+
+Reviews are obained from the apartmentratings.com.
+
+
 ```{r, message=FALSE, cache=TRUE, warning=FALSE}
 library(tm)
 library(SnowballC)
