@@ -1,0 +1,130 @@
+---
+title: "QMSS 5063 Data Visualization"
+author: "Xiaoshu Xu"
+date: "5/1/2020"
+output: html_document
+---
+
+# FY 2011/2012 Condominium and Cooperative Comparison
+Data Source: 
+DOF: Condominium comparable rental income – Manhattan - FY 2010/2011 (https://data.cityofnewyork.us/Housing-Development/DOF-Condominium-Comparable-Rental-Income-Manhattan/dvzp-h4k9)
+
+DOF: Cooperative Comparable Rental Income – Manhattan– FY 2011/2012
+(https://data.cityofnewyork.us/Housing-Development/DOF-Condominium-comparable-rental-income-Manhattan/ikqj-pyhc)
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+library(tidyverse)
+library(devtools)
+library(readr)
+library(leaflet)
+library(dplyr)
+library(RColorBrewer)
+library(geosphere)
+library(rgeos)
+library(ggplot2)
+library(lubridate)
+library(rgdal)
+library(mapview)
+library(leaflet)
+```
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+condo<- read.csv("C:/Users/Katrina Xu/Desktop/Spring 2020/QMSS5063/DV  final project/DOF__Condominium_Comparable_Rental_Income___Manhattan___FY_2011_2012.csv")
+
+coop<- read.csv("C:/Users/Katrina Xu/Desktop/Spring 2020/QMSS5063/DV  final project/DOF__Cooperative_Comparable_Rental_Income___Manhattan__FY_2011_2012.csv")
+
+# In these 2 datasets, gross income basically represents the rental payment. Some income such as parking or amenity may be included as well.
+```
+
+# 1. Year Built & Gross Income Per square Feet (rental per square feet)
+## static images based on ggplot2
+### Condominium
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+# average gross income per sq ft
+avg_condo <- condo%>%
+  group_by(MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Year.Built)%>%
+  filter(!is.na(MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Year.Built))%>%
+  summarize(mean_rent_condo=mean(MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt))
+  
+plot_avg_condo <- ggplot(avg_condo,aes(x=MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Year.Built,y=mean_rent_condo))+
+  geom_line(col="dodgerblue2")+
+  geom_point(size=1.5,col="dodgerblue4")+
+  labs(title="Condominium")+
+  xlab("Year Built") +
+  ylab("Average Rental per SqFt")
+
+plot_avg_condo
+```
+
+### Cooperative
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+# average gross income per sq ft
+avg_coop <- coop%>%
+  group_by(MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Year.Built)%>%
+  filter(!is.na(MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Year.Built))%>%
+  summarize(mean_rent_coop=mean(MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt))
+  
+plot_avg_coop <- ggplot(avg_coop,aes(x=MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Year.Built,y=mean_rent_coop))+
+  geom_line(col="dodgerblue2")+
+  geom_point(size=1.5,col="dodgerblue4")+
+  labs(title="Cooperative")+
+  xlab("Year Built") +
+  ylab("Average Rental per SqFt")
+
+plot_avg_coop
+```
+
+## leaflet map 
+maps using geospatial data
+
+#### Condo
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+# Remove Observations that with Longitude and Latitude unavailable
+geo_condo <- condo%>%
+  filter(!is.na(Latitude))
+
+content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
+                 "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                 "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
+                 "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
+
+pal = colorFactor("Set1", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+color_neighborhood = pal(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+
+map_condo <- leaflet(geo_condo)%>%
+  addTiles() %>%  
+  addCircles(lng = ~Longitude, 
+             lat = ~Latitude,
+             popup = content1)
+map_condo
+```
+
+#### Coop
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+# Data Cleaning - Coop
+# Remove Observations that with Longitude and Latitude unavailable
+geo_coop <- coop%>%
+  filter(!is.na(Latitude))
+
+content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
+                 "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                 "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
+                 "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
+
+
+map_coop <- leaflet(geo_coop)%>%
+  addTiles() %>%  
+  addCircles(lng = ~Longitude, 
+             lat = ~Latitude,
+             popup = content2)
+
+map_coop
+```
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+sync(map_condo,map_coop)
+```
+
