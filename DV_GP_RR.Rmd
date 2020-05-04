@@ -1,0 +1,190 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Renter Review
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+library(tm)
+library(SnowballC)
+library(readtext)
+gtxt <- readtext(paste0("goodreview.txt"), text_field = "texts")
+good <- Corpus(VectorSource(gtxt$text))
+btxt <- readtext(paste0("badreview.txt"), text_field = "texts")
+bad <- Corpus(VectorSource(btxt$text))
+
+removeNumPunct <- function(x){gsub("[^[:alpha:][:space:]]*", "", x)}
+
+clean_corpus <- function(corpus){
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removeWords, c(stopwords("en")))
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, content_transformer(removeNumPunct))
+  corpus <- tm_map(corpus, stripWhitespace)
+  return(corpus)
+}
+
+gclean <- clean_corpus(good)
+bclean <- clean_corpus(bad)
+
+gstem <- tm_map(gclean, stemDocument)
+bstem <- tm_map(bclean, stemDocument)
+
+
+stemCompletion2 <- function(x, dictionary) {
+   x <- unlist(strsplit(as.character(x), " "))
+   x <- x[x != ""]
+   x <- stemCompletion(x, dictionary=dictionary)
+   x <- paste(x, sep="", collapse=" ")
+   PlainTextDocument(stripWhitespace(x))
+}
+
+gcomp <- lapply(gstem, stemCompletion2, dictionary = gclean)
+bcomp <- lapply(bstem, stemCompletion2, dictionary = bclean)
+
+gcomp <- as.VCorpus(gcomp)
+bcomp <- as.VCorpus(bcomp)
+
+# Create DTM
+gdtm <- DocumentTermMatrix(gcomp)
+bdtm <- DocumentTermMatrix(bcomp)
+```
+
+
+## Good Review
+
+
+We clean up the reviews for text analysis. This is the wordcloud for the good reviews. “Great”, “staff”, “friend”, and “nice” are some popular words used by renters.
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+library(wordcloud)
+
+# good
+m <- as.matrix(gdtm)
+v <- sort(colSums(m),decreasing = TRUE)
+d <- data.frame(word = names(v),freq = v)
+d_wc <- d[2:150, ]
+
+set.seed(1234)
+wordcloud(words = d_wc$word, freq = d$freq, min.freq = 25,
+          max.words = 200, random.order = FALSE, rot.per = 0.35, 
+          colors = brewer.pal(8, "Dark2"))
+```
+
+
+
+## Bad Review
+
+
+The wordcloud for bad reviews contains words like “manage”, “rent”, “tenant”, “move”, and “lease”.  These are potentially common complaints or issues raised by residents.
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+# bad
+m2 <- as.matrix(bdtm)
+v2 <- sort(colSums(m2),decreasing = TRUE)
+d2 <- data.frame(word = names(v2),freq = v2)
+d2_wc <- d2[2:150, ]
+
+set.seed(1234)
+wordcloud(words = d2_wc$word, freq = d2$freq, min.freq = 25,
+          max.words = 200, random.order = FALSE, rot.per = 0.35, 
+          colors = brewer.pal(8, "Dark2"))
+```
+
+
+## Pyramid Plot
+
+
+This pyramid plot compares words used in common in good reviews and bad reviews. “Live”, “staff”, and “nice” stand out in the good reviews. “Rent”, “tenant”, and “lease” are more frequently used in bad reviews as previously shown in the wordcloud.
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+library(plotrix)
+library(dplyr)
+
+gword <- head(d, 50)
+bword <- d2 %>% 
+  filter(word %in% gword$word) %>% 
+  rename(bcnt = freq)
+
+common_word <- left_join(bword, gword)
+common_word <- common_word[3:22, ]
+
+pplot <- pyramid.plot(common_word$freq, common_word$bcnt,
+                       labels = common_word$word, gap = 25, 
+                       top.labels = c("Good", " ", "Bad"),
+                       main = "Words in Common", laxlab = NULL, 
+                       raxlab = NULL, unit = NULL, labelcex = 1)
+```
+
+
+## Comparison Cloud
+
+
+This comparison cloud is based on the positive words in good reviews and negative words in bad reviews. The words in red on the top half of the comparison cloud are very positive. It is reasonable to infer that residents “love” their apartment and have “fun” living there. The words in blue on the bottom half are very negative and problematic. “Dirt”, “bug”, “rust”, “damage”, and “allergies” appear in this part. Adjectives like “aloof”, “annoying”, “aggressive”, and “atrocious” demonstrate the unpleasant experience and feelings of the residents.
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+library(tidytext)
+library(ggplot2)
+
+goodbp <- d %>% 
+  select(word) %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  filter(sentiment == "positive") %>% 
+  select(word)
+
+badbn <- d2 %>% 
+  select(word) %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  filter(sentiment == "negative") %>% 
+  select(word)
+
+
+pn_corpus <- VCorpus(VectorSource(c(goodbp, badbn)))
+pn_tdm <- TermDocumentMatrix(pn_corpus)
+pn_tdm_m <- as.matrix(pn_tdm)
+
+set.seed(202)
+comparison.cloud(pn_tdm_m, colors = c("red", "blue"))
+```
+
+
+## Sentiment Analysis
+
+
+This sentiment analysis is based on the NRC dictionary. It categorizes words into ten emotional categories. Bad review is more sentimental in all categories except “joy”, which is slightly higher in good review. Bad review has very distinctive emotions like “negative”, “sadness”, “fear”, “disgust”, and “anger”.
+
+
+```{r, message=FALSE, warning=FALSE, cache=TRUE}
+goodnrc <- d %>% 
+  select(word) %>% 
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  rename(goodn = n)
+
+badnrc <- d2 %>% 
+  select(word) %>% 
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  rename(badn = n)
+
+nrc <- left_join(goodnrc, badnrc)
+
+nrc %>% 
+    select(sentiment, goodn, badn) %>% 
+    tidyr::gather(sent, state_n, -sentiment) %>% 
+    ggplot(aes(x = sentiment, y = state_n, fill = sent)) + 
+    geom_bar(stat = "identity", position = "dodge") +
+    coord_flip() +
+    ylab(NULL) +
+    xlab(NULL) +
+    scale_fill_discrete(name = NULL,
+                        labels = c("Bad Review", "Good Review"))
+```
+

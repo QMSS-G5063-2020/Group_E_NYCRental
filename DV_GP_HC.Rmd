@@ -1,0 +1,135 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+# New York City Rental Housing & Renter Characteristics
+
+Data source: American Community Survey (ACS) - Census Bureau
+
+https://data.census.gov/cedsci/table?d=ACS%205-Year%20Estimates%20Data%20Profiles&table=DP04&tid=ACSDP5Y2018.DP04&g=0400000US36_1600000US3651000
+
+
+The American Community Survey (ACS) contains data profiles of social, economic, housing, and demographic characteristics of various geography type. The most specific geography type that we concern is New York City, New York. The data from the website of the United States Census Bureau are ACS 5-Year Estimates Data Profiles that are available from 2010 to 2018.
+
+
+The first plot is about housing occupancy. Overall, the rental vacancy rate is lowering from 2010 to 2018, which means more rental housing units are being occupied.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+ACS <- read.csv('ACS.csv', stringsAsFactors=FALSE)
+
+library(dplyr)
+library(ggplot2)
+
+(Rental_vacancy_plot <- ggplot(ACS, aes(x = Year, y = Rental_vacancy_pct)) +
+  geom_line() +
+  geom_point(size = 3, color = "blue") +
+  ggtitle("Rental Vacancy Rate") +
+  geom_text(aes(label = Rental_vacancy_pct), 
+            hjust = 0.5, vjust = -0.5, 
+            color = "red", size = 5) +
+  scale_x_continuous(breaks = ACS$Year) +
+  ylab(NULL) +
+  ylim(3.2, 4))
+```
+
+
+The second plot shows that the percentage of renter-occupied unit among all occupied housing unit experience a peak in 2015. Throughout the years, this number is always over 67%. Not surprisingly, renters consistently outnumber owners in NYC.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+(Rental_occ_plot <- ggplot(ACS, aes(x = Year, y = Renter_occupied_pct)) +
+  geom_line() +
+  geom_point(size = 3, color = "blue") +
+  ggtitle("Percentage of Renter-Occupied Unit among All Occupied Housing Unit") +
+  geom_text(aes(label = Renter_occupied_pct), 
+            hjust = 0.5, vjust = -0.5, 
+            color = "red", size = 5) +
+  scale_x_continuous(breaks = ACS$Year) +
+  ylab(NULL) +
+  ylim(67, 68.5))
+```
+
+
+The average household size of renter-occupied unit shows an increasing trend. Each renter-occupied unit is usually occupied by 2.5 renters.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+(HH_Size_plot <- ggplot(ACS, aes(x = Year, y = Avg_HH_Size_RO)) +
+  geom_line() +
+  geom_point(size = 3, color = "blue") +
+  ggtitle("Average Household Size of Renter-Occupied Unit") +
+  geom_text(aes(label = Avg_HH_Size_RO), 
+            hjust = 0.5, vjust = -0.5, 
+            color = "red", size = 5) +
+  scale_x_continuous(breaks = ACS$Year) +
+  ylab(NULL) +
+  ylim(2.45, 2.60))
+```
+
+
+The median gross rent, in dollars, keeps increasing from 2010 to 2018. This increase is over 300 dollars.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+(GR_plot <- ggplot(ACS, aes(x = Year, y = Gross_Rent_Median)) +
+  geom_line() +
+  geom_point(size = 3, color = "blue") +
+  ggtitle("Median Gross Rent (Dollars)") +
+  geom_text(aes(label = Gross_Rent_Median), 
+            hjust = 0.5, vjust = -0.5, 
+            color = "red", size = 5) +
+  scale_x_continuous(breaks = ACS$Year) +
+  ylab(NULL) +
+  ylim(1000, 1430))
+```
+
+
+When take a closer look at the gross rent as a percentage of household income, more than 40% of the renters spend over 35% of their income on rent.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+library(tidyr)
+(GR_HI_plot1 <- ACS %>% 
+    select(Year, GR_HI1, GR_HI2, GR_HI3, GR_HI4, GR_HI5, GR_HI6) %>% 
+    tidyr::gather(GIP, GR_HI, -Year) %>% 
+    ggplot(aes(x = Year, y = GR_HI, fill = GIP)) + 
+    geom_bar(stat = "identity", position = "dodge") +
+    scale_x_continuous(breaks = ACS$Year) +
+    ylab(NULL) +
+    ggtitle("Gross Rent as a Percentage of Household Income") +
+    scale_fill_discrete(name = NULL,
+                        labels = c("< 15.0", 
+                                   "15.0 - 19.9",
+                                   "20.0 - 24.9",
+                                   "25.0 - 29.9",
+                                   "30.0 - 34.9",
+                                   "35 or higher")))
+```
+
+
+As for the cross-year-within-group comparison, two groups fluctuate most: the group that spend less than 15% of their income on rent and the one that spend 35% or higher. The four middle groups experience less fluctuation over years. In general, NYC renters spend a large portion of their household income on gross rent and the burden for the less privileged has an increasing trend.
+
+
+```{r, message=FALSE, cache=TRUE, warning=FALSE}
+(GR_HI_plot2 <- ACS %>% 
+    rename("< 15.0" = GR_HI1,
+         "15.0 - 19.9" = GR_HI2,
+         "20.0 - 24.9" = GR_HI3,
+         "25.0 - 29.9" = GR_HI4,
+         "30.0 - 34.9" = GR_HI5,
+         "35 or higher" = GR_HI6) %>% 
+    select(Year, "< 15.0", "15.0 - 19.9", "20.0 - 24.9", 
+           "25.0 - 29.9", "30.0 - 34.9", "35 or higher") %>% 
+    tidyr::gather(GIP, GR_HI, -Year) %>%
+    ggplot(aes(x = Year, y = GR_HI, fill = GIP)) + 
+    geom_bar(stat = "identity") +
+    ylab(NULL) +
+    ggtitle("Gross Rent as a Percentage of Household Income") +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle=45)) +
+    facet_wrap(~GIP, nrow = 1))
+```
+
