@@ -138,8 +138,8 @@ ui =  navbarPage(
              column(width=6, h2(strong("Apartment Rental in Manhattan"), style = "font-size:20px; color:black"))
            ),
             fluidRow(
-             column(width=10, textOutput("preface")),
-               column(width=2, tags$img(src = "map.png", height=300, width=100)
+             column(width=8, textOutput("preface")),
+               column(width=2, offset = 2, tags$img(src = "map.png", height=300, width=100)
                       )
              ),
             fluidRow(
@@ -148,7 +148,7 @@ ui =  navbarPage(
               ),
             fluidRow(
              column(width=6, uiOutput("author")),
-             column(width=3,tags$img(src = "nyc.png", height=200, width=280)
+             column(width=4,tags$img(src = "nyc.png", height=250, width=400)
               )
             )
            
@@ -257,8 +257,12 @@ ui =  navbarPage(
                )
              )
            ),
-  tabPanel("Renter", htmlOutput("hc")),
-  tabPanel("Review", htmlOutput("rr"))
+  tabPanel("Renters",
+    tabsetPanel(
+      tabPanel("Characteristics", htmlOutput("hc")),
+      tabPanel("Review", htmlOutput("rr"))
+    )
+  )
 )
 
 
@@ -357,7 +361,7 @@ server = function(input, output) {
     })
     
     output$author <- renderUI({
-      HTML('Group E <br> cz2581@columbia.edu <br> xx2337@columbia.edu <br> zh2411@columbia.edu <br> yz3667@columbia.edu')
+      HTML('Group E <br>Chuze Zhang  cz2581@columbia.edu <br>Xiaoshu Xu  xx2337@columbia.edu <br>Zian He  zh2411@columbia.edu <br>Yingtong Zhou  yz3667@columbia.edu')
     })
     
     output$preface <- renderText({
