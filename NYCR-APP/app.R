@@ -7,7 +7,6 @@ library(purrr)
 library(readr)
 library(dplyr)
 library(shiny)
-library(stringr)
 library(tidyr)
 library(reshape)
 library(zoo)
@@ -16,11 +15,17 @@ library(dygraphs)
 library(shinythemes)
 library(ggplot2)
 library(tidyverse)
+library(devtools)
+library(readr)
+library(RColorBrewer)
+library(geosphere)
+library(rgeos)
+library(mapview)
 
 
 
 
-dateInput <- function(inputId, label, value, min, max, format="yyyy-mm-dd", minview = "days", maxview = "decades", ...) {
+dateInput <- function(inputId, label, value, min, max, format="yyyy-mm", minview = "days", maxview = "decades", ...) {
   d <- shiny::dateInput(inputId, label, value, min, max, format, ...)
   d$children[[2L]]$attribs[["data-date-min-view-mode"]] <- minview
   d$children[[2L]]$attribs[["data-date-max-view-mode"]] <- maxview
@@ -125,32 +130,30 @@ invent_3b <- read.csv("rentalInventory_ThreePlusBd.csv")
 rent_3b <-clean_up_rent(rent_3b)
 invent_3b <- clean_up_invent(invent_3b)
 
-PAGE_TITLE <- "Rental Genius|Manhattan,NY"
+PAGE_TITLE <- "Rental Genius|Manhattan, NY"
+condo<- read.csv("DOF__Condominium_Comparable_Rental_Income___Manhattan___FY_2011_2012.csv")
+
+coop<- read.csv("DOF__Cooperative_Comparable_Rental_Income___Manhattan__FY_2011_2012.csv")
 
 
 ui =  navbarPage(
-  title = div(PAGE_TITLE, img(src = "city.png", height="35px", 
-                              style = "position: relative; top: -10px")),
+  title = div(PAGE_TITLE, img(src = "city.png", height="30px", 
+                              style = "position: relative; top: -3px")),
   theme = shinytheme("sandstone"),
   
   tabPanel("About",
             fluidRow(
-             column(width=6, h2(strong("Apartment Rental in Manhattan"), style = "font-size:20px; color:black"))
+             column(width=6, h2(strong("Apartment Rental in Manhattan"), style = "font-size:28px; color:black"))
            ),
             fluidRow(
-             column(width=8, textOutput("preface")),
-               column(width=2, offset = 2, tags$img(src = "map.png", height=300, width=100)
+             column(width=8, textOutput("preface"), 
+                    fluidRow(
+                      column(width=3, uiOutput("author")),
+                      column(4, offset = 2, uiOutput("nycstreet"))
+                    )),
+               column(width=3, offset = 1, tags$img(src = "map.png", height=360, width=85)
                       )
-             ),
-            fluidRow(
-             column(width=6, h2(strong("Authors"), style = "font-size:20px; color:black")
-                    )
-              ),
-            fluidRow(
-             column(width=6, uiOutput("author")),
-             column(width=4,tags$img(src = "nyc.png", height=250, width=400)
-              )
-            )
+             )
            
               
            
@@ -163,8 +166,8 @@ ui =  navbarPage(
     type = "text/css",
       "#controlPanel {background-color: rgba(255,255,255,0.8);}",
       ".leaflet-top.leaflet-right .leaflet-control {
-        margin-top: 500px;
-        margin-right: 685px
+        margin-top: 580px;
+        margin-right: 160px
       }",
       ".dygraph-title {
       color: white;
@@ -223,7 +226,8 @@ ui =  navbarPage(
             selected = "All"
           ),
         
-          textOutput("date")
+          textOutput("date"),
+          uiOutput("rentsource")
           ),
         
         tabPanel(
@@ -259,10 +263,55 @@ ui =  navbarPage(
            ),
   tabPanel("Renters",
     tabsetPanel(
-      tabPanel("Characteristics", htmlOutput("hc")),
-      tabPanel("Review", htmlOutput("rr"))
+      #tabPanel("Characteristics", htmlOutput("hc")),
+      tabPanel("Characteristics",
+               fluidRow(
+                 column(width=12, h2(strong("New York City Rental Housing & Renter Characteristics"), style = "font-size:30px; color:black;margin-left:1.5em")
+               )),
+               fluidRow(
+                 column(width=10, offset=1,uiOutput("nyccha"))
+               )
+               ),
+      tabPanel("Review", 
+               fluidRow(
+                 column(width=12, h2(strong("Renter Review"), style = "font-size:30px; color:black;margin-left:1.5em"))
+               ),
+               fluidRow(
+                 column(width=10, offset=1,uiOutput("nycrev"))
+               )
+               )
+
     )
-  )
+  ),
+  
+  tabPanel("Condo",
+           tabsetPanel(
+             tabPanel("Overview",
+                uiOutput("condo")),
+               tabPanel("Detail",
+                        fluidRow(
+                          column(width=12,h2(strong("Leaflet Map"), style = "font-size:30px; color:black;margin-left:0.3em")
+                        )),
+                        fluidRow(
+                          column(width=11, offset=1,h2(strong("Condo"), style = "font-size:15px; color:black")
+                        )),
+                        fluidRow(
+                          column(8, offset=1, leafletOutput("condoleaf"))
+                        ),
+                        fluidRow(
+                          column(width=11, offset=1,h2(strong("Coop"), style = "font-size:15px; color:black")
+                        )),
+                        fluidRow(
+                          column(8, offset=1, leafletOutput("condoleaf2"))
+                        ),
+                        fluidRow(
+                          column(width=11, offset=1,h2(strong("Comparison"), style = "font-size:15px; color:black")
+                        )),
+                        fluidRow(
+                          column(10, offset=1, uiOutput("condoleaf3"))
+                        )
+                )
+           ))
 )
 
 
@@ -361,7 +410,11 @@ server = function(input, output) {
     })
     
     output$author <- renderUI({
-      HTML('Group E <br>Chuze Zhang  cz2581@columbia.edu <br>Xiaoshu Xu  xx2337@columbia.edu <br>Zian He  zh2411@columbia.edu <br>Yingtong Zhou  yz3667@columbia.edu')
+      HTML('<br>
+      <br>
+      <br>
+      <h3 "font-weight:bold; color:black; font-family:Impact;">Authors</h3>
+           Group E <br>Chuze Zhang  cz2581@columbia.edu <br>Xiaoshu Xu  xx2337@columbia.edu <br>Zian He  zh2411@columbia.edu <br>Yingtong Zhou  yz3667@columbia.edu')
     })
     
     output$preface <- renderText({
@@ -376,8 +429,119 @@ server = function(input, output) {
               )
     })
     
-    output$nycmap <- renderUI({
-      tags$img(src = "images/map.png")
+    output$nyccha <- renderUI({
+      HTML('<br>
+      Data source: American Community Survey (ACS) - Census Bureau <br>
+           <br>
+            <a href="https://data.census.gov/cedsci/table?d=ACS%205-Year%20Estimates%20Data%20Profiles&table=DP04&tid=ACSDP5Y2018.DP04&g=
+           0400000US36_1600000US3651000">Link to Data</a><br />
+        
+           <br>
+            The American Community Survey (ACS) contains data profiles of social, 
+           economic, housing, and demographic characteristics of various geography type. 
+           The most specific geography type that we concern is New York City, New York. 
+           The data from the website of the United States Census Bureau are ACS 5-Year 
+           Estimates Data Profiles that are available from 2010 to 2018.<br>
+           <br>
+            The first plot is about housing occupancy. Overall, the rental vacancy rate is 
+           lowering from 2010 to 2018, which means more rental housing units are being occupied.<br>
+           <br>
+           
+           <img src="Renter/unnamed-chunk-1-1.png" style="width:650px;height:450px;"> <br>
+           <br>
+           The second plot shows that the percentage of renter-occupied unit among all occupied housing 
+           unit experience a peak in 2015. Throughout the years, this number is always over 67%. Not surprisingly, 
+           renters consistently outnumber owners in NYC.<br>
+           <br>
+           <img src="Renter/unnamed-chunk-1-2.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           The average household size of renter-occupied unit shows an increasing trend. Each renter-occupied 
+           unit is usually occupied by 2.5 renters.<br>
+           <br>
+           <img src="Renter/unnamed-chunk-1-3.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           The median gross rent, in dollars, keeps increasing from 2010 to 2018. This increase is over 300 dollars.<br>
+           <br>
+           <img src="Renter/unnamed-chunk-1-4.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           When take a closer look at the gross rent as a percentage of household income, more than 40% of the renters 
+           spend over 35% of their income on rent.<br>
+           <br>
+           <img src="Renter/unnamed-chunk-5-1.png" style="width:680px;height:450px;"> <br> 
+           <br>
+           As for the cross-year-within-group comparison, two groups fluctuate most: the group that spend less than 15% 
+           of their income on rent and the one that spend 35% or higher. The four middle groups experience less fluctuation 
+           over years. In general, NYC renters spend a large portion of their household income on gross rent and the burden
+           for the less privileged has an increasing trend.<br>
+           <br>
+           <img src="Renter/unnamed-chunk-6-1.png" style="width:660px;height:450px;"> <br> 
+           <br>')
+    })
+    
+    output$nycrev <- renderUI({
+      HTML('<br>
+      Reviews are obained from the apartmentratings.com.<br>
+           <br>
+           <a href="https://www.apartmentratings.com/ny/new-york/">Link to Data</a><br/>
+           <h3 style = "font-weight:bold; color:black">Good Review</h3>
+           We clean up the reviews for text analysis. This is the wordcloud for the good reviews. 
+           "Great", "staff", "friend", and "nice" are some popular words used by renters. <br>
+           <img src="Review/unnamed-chunk-2-1.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           <h3 style = "font-weight:bold; color:black">Bad Review</h3>
+           The wordcloud for bad reviews contains words like "manage", "rent", "tenant", "move", and "lease". 
+           These are potentially common complaints or issues raised by residents.<br>
+            <img src="Review/unnamed-chunk-3-1.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           <h3 style = "font-weight:bold; color:black">Pyramid Plot</h3>
+           This pyramid plot compares words used in common in good reviews and bad reviews. 
+           "Live", "staff", and "nice" stand out in the good reviews. "Rent", "tenant", and 
+           "lease" are more frequently used in bad reviews as previously shown in the wordcloud.<br>
+           <br>
+           <img src="Review/unnamed-chunk-4-1.png" style="width:700px;height:450px;"> <br> 
+           <br>
+           <h3 style = "font-weight:bold; color:black">Comparison Cloud</h3>
+           This comparison cloud is based on the positive words in good reviews and negative words in bad reviews.
+           The words in red on the top half of the comparison cloud are very positive. It is reasonable to infer 
+           that residents "love" their apartment and have "fun" living there. The words in blue on the bottom half 
+           are very negative and problematic. "Dirt", "bug", "rust", "damage", and "allergies" appear in this part. 
+           Adjectives like "aloof", "annoying", "aggressive", and "atrocious" demonstrate the unpleasant experience 
+           and feelings of the residents.<br>
+           <br>
+           <img src="Review/unnamed-chunk-5-1.png" style="width:650px;height:450px;"> <br> 
+           <br>
+           <h3 style = "font-weight:bold; color:black">Sentiment Analysis</h3>
+           This sentiment analysis is based on the NRC dictionary. It categorizes words into ten emotional categories.
+           Bad review is more sentimental in all categories except "joy", which is slightly higher in good review. 
+           Bad review has very distinctive emotions like "negative", "sadness", "fear", "disgust", and "anger".<br>
+           <img src="Review/unnamed-chunk-6-1.png" style="width:750px;height:550px;"
+           <br>')
+      
+    })
+    
+    output$nycstreet <- renderUI({
+      HTML('<br>
+      <br>
+      <br>
+           <img src="nycstreet.png" style="width:380px;height:27s0px;"> <br> 
+           ')
+    })
+    
+    output$rentsource <- renderUI({
+      HTML("<a href='https://streeteasy.com/blog/data-dashboard/
+           ?agg=Total&metric=Inventory&type=Rentals&bedrooms=Three%20or%20More%20Bedrooms&property
+           =Any%20Property%20Type&minDate=2010-01-01&maxDate=2020-01-01&area=Flatiron,Brooklyn%20Heights'>
+           Link to Data</a><br/>")
+    })
+    
+    output$condo <- renderUI({
+      HTML("<h2 style = 'font-weight:bold; color:black'>Year Built & Gross Income Per square 
+           Feet </h2>
+           <br>
+           <h4 style = 'font-weight:bold; color:black'>Condominium</h4>
+           <img src='condo1.png' style='width:650px;height:450px;'>
+           <h4 style = 'font-weight:bold; color:black'>Cooperative</h4>
+           <img src='condo2.png' style='width:650px;height:450px;'>")
     })
     
     plotdata <- reactive({
@@ -392,6 +556,86 @@ server = function(input, output) {
         scale_x_continuous(breaks = plotdata1$month,labels = plotdata1$label)+xlab("")+
         theme(axis.text.x = element_text(angle =45))
     })
+    
+    output$condoleaf <- renderLeaflet({
+      geo_condo <- condo%>%
+        filter(!is.na(Latitude))
+      
+      content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
+                        "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                        "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
+                        "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
+      
+      pal = colorFactor("Set1", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+      color_neighborhood = pal(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+      
+      map_condo <- leaflet(geo_condo)%>%
+        addTiles() %>%  
+        addCircles(lng = ~Longitude, 
+                   lat = ~Latitude,
+                   popup = content1)
+      map_condo
+    })
+    
+    output$condoleaf2 <- renderLeaflet({
+      geo_coop <- coop%>%
+        filter(!is.na(Latitude))
+      
+      content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
+                        "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                        "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
+                        "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
+      
+      
+      map_coop <- leaflet(geo_coop)%>%
+        addTiles() %>%  
+        addCircles(lng = ~Longitude, 
+                   lat = ~Latitude,
+                   popup = content2)
+      
+      map_coop
+      
+    })
+    
+    output$condoleaf3<-renderUI({
+      geo_condo <- condo%>%
+        filter(!is.na(Latitude))
+      
+      content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
+                        "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                        "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
+                        "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
+      
+      pal = colorFactor("Set1", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+      color_neighborhood = pal(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
+      
+      map_condo <- leaflet(geo_condo)%>%
+        addTiles() %>%  
+        addCircles(lng = ~Longitude, 
+                   lat = ~Latitude,
+                   popup = content1)
+      geo_coop <- coop%>%
+        filter(!is.na(Latitude))
+      
+      content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
+                        "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                        "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
+                        "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
+      
+      
+      map_coop <- leaflet(geo_coop)%>%
+        addTiles() %>%  
+        addCircles(lng = ~Longitude, 
+                   lat = ~Latitude,
+                   popup = content2)
+      
+      sync(map_condo, map_coop)
+      
+      
+      
+    })
+    
+
     
     
     
@@ -422,15 +666,15 @@ server = function(input, output) {
       
     })
     
-    getPage<-function() {
-      return(includeHTML("DV_GP_HC.html"))
-    }
-    output$hc<-renderUI({getPage()})
+    #getPage<-function() {
+      #return(includeHTML("DV_GP_HC.html"))
+    #}
+    #output$hc<-renderUI({getPage()})
     
-    getPage2<-function() {
-      return(includeHTML("DV_GP_RR.html"))
-    }
-    output$rr<-renderUI({getPage2()})
+    #getPage2<-function() {
+      #return(includeHTML("DV_GP_RR.html"))
+    #}
+    #output$rr<-renderUI({getPage2()})
 
 }
 
