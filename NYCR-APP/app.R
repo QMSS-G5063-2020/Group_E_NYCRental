@@ -21,6 +21,8 @@ library(RColorBrewer)
 library(geosphere)
 library(rgeos)
 library(mapview)
+library(ggthemes)
+library(scales)
 
 
 
@@ -77,25 +79,6 @@ clean_up_invent <- function(invent){
   return (invent)
 }
 
-mydata <- read.csv('medianRent.csv')
-year_data <- mydata[,c(4:126)]
-plotdata_month <- year_data%>%gather(time,value)
-plotdata_month$time <- gsub("X","",plotdata_month$time)
-
-plotdata_month$month <- lapply(plotdata_month$time,function(x){
-  temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
-  temp[2]
-})
-
-plotdata_month$year <- lapply(plotdata_month$time,function(x){
-  temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
-  temp[1]
-})
-plotdata_month$month <- as.numeric(plotdata_month$month)
-plotdata_month$year <- as.numeric(plotdata_month$year)
-
-average <- plotdata_month %>% group_by(year,month) %>% 
-  summarise(price = mean(value,na.rm = TRUE))
 
 
 nybr <- readOGR("neigborhoods_bound.geojson", verbose= FALSE)
@@ -105,35 +88,63 @@ nybr<-nybr%>%subset(!nybr@data$neighborhood%in%c("Randall's Island", "Ellis Isla
 
 rent_all <- read.csv("medianRent.csv")
 invent_all <- read.csv("rentalInventory_All.csv")
+rent_all_all <- rent_all 
 rent_all<-clean_up_rent(rent_all)
 invent_all <- clean_up_invent(invent_all)
 
 rent_studio <- read.csv("medianAskingRent_Studio.csv")
 invent_studio <- read.csv("rentalInventory_Studio.csv")
+rent_studio_all <- rent_studio 
 rent_studio<-clean_up_rent(rent_studio)
 invent_studio <- clean_up_invent(invent_studio)
 
 rent_1b <- read.csv("medianAskingRent_OneBd.csv")
 invent_1b <- read.csv("rentalInventory_OneBd.csv")
+rent_1b_all <- rent_1b 
 rent_1b<-clean_up_rent(rent_1b)
 invent_1b <- clean_up_invent(invent_1b)
 
 
 rent_2b <- read.csv("medianAskingRent_TwoBd.csv")
 invent_2b <- read.csv("rentalInventory_TwoBd.csv")
+rent_2b_all <- rent_2b 
 rent_2b<-clean_up_rent(rent_2b)
 invent_2b <- clean_up_invent(invent_2b)
 
 
 rent_3b <- read.csv("medianAskingRent_ThreePlusBd.csv")
 invent_3b <- read.csv("rentalInventory_ThreePlusBd.csv")
+rent_3b_all <- rent_3b
 rent_3b <-clean_up_rent(rent_3b)
 invent_3b <- clean_up_invent(invent_3b)
 
 PAGE_TITLE <- "Rental Genius|Manhattan, NY"
+
 condo<- read.csv("DOF__Condominium_Comparable_Rental_Income___Manhattan___FY_2011_2012.csv")
 
+geo_condo <- condo%>%
+  filter(!is.na(Latitude))
+
+content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
+                  "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                  "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
+                  "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
+
+pal1 = colorQuantile("dodgerblue", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt%>%as.numeric())
+color_neighborhood1 = pal1(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt%>%as.numeric())
+
 coop<- read.csv("DOF__Cooperative_Comparable_Rental_Income___Manhattan__FY_2011_2012.csv")
+
+geo_coop <- coop%>%
+  filter(!is.na(Latitude))
+
+content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
+                  "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
+                  "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
+                  "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
+
+pal2 = colorQuantile("dodgerblue", domain = geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt%>%as.numeric())
+color_neighborhood2 = pal2(geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt%>%as.numeric())
 
 
 ui =  navbarPage(
@@ -143,16 +154,13 @@ ui =  navbarPage(
   
   tabPanel("About",
             fluidRow(
-             column(width=6, h2(strong("Apartment Rental in Manhattan"), style = "font-size:28px; color:black"))
+             column(width=12, h2(strong("Rental Apartments in Manhattan"), style = "font-size:30px; color:black;text-align:center;position:relative"))
            ),
             fluidRow(
-             column(width=8, textOutput("preface"), 
+             column(width=8, offset = 2, uiOutput("preface"), 
                     fluidRow(
-                      column(width=3, uiOutput("author")),
-                      column(4, offset = 2, uiOutput("nycstreet"))
-                    )),
-               column(width=3, offset = 1, tags$img(src = "map.png", height=360, width=85)
-                      )
+                      column(12, uiOutput("nycstreet"))
+                    ))
              )
            
               
@@ -251,19 +259,28 @@ ui =  navbarPage(
   
   ),
   tabPanel("Time Series",
-             titlePanel("Manhattan NYC"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("input1","Select year:",choices = c(2010:2020))
-               ),
-               mainPanel(
-                 plotOutput(outputId = "plot1")
-               )
-             )
-           ),
+           titlePanel("Manhattan NYC"),
+           fluidRow(
+                    sidebarPanel(
+                      selectInput("input1","Select a Year",choices = c(2010:2020)),
+                      selectInput(
+                        "bedroom3",
+                        shiny::HTML("Bedroom Count"),
+                        c("All", "Studio", "One Bedroom", "Two Bedroom", "Three Bedroom+"),
+                        selected = "All"
+                      )
+                      
+                    ),
+                    mainPanel(
+                      plotOutput(outputId = "plot1", width = 635,height = 400),
+                      br(),
+                      br(),
+                      plotOutput(outputId = "plot2", width = 635,height = 400)
+                    )
+                  )
+          ),
   tabPanel("Renters",
     tabsetPanel(
-      #tabPanel("Characteristics", htmlOutput("hc")),
       tabPanel("Characteristics",
                fluidRow(
                  column(width=12, h2(strong("New York City Rental Housing & Renter Characteristics"), style = "font-size:30px; color:black;margin-left:1.5em")
@@ -286,7 +303,7 @@ ui =  navbarPage(
   
   tabPanel("Condo",
            tabsetPanel(
-             tabPanel("Overview",
+             tabPanel("Summary",
                 uiOutput("condo")),
                tabPanel("Detail",
                         fluidRow(
@@ -354,6 +371,42 @@ server = function(input, output) {
     }
   })
   
+  rent3 <- reactive({
+    if (input$bedroom3 =="All"){
+      rent <- rent_all
+    }
+    else if (input$bedroom3 =="Studio"){
+      rent <- rent_studio
+    }
+    else if (input$bedroom3 =="One Bedroom"){
+      rent <- rent_1b
+    }
+    else if (input$bedroom3 =="Two Bedroom"){
+      rent <- rent_2b
+    }
+    else if (input$bedroom3 =="Three Bedroom+"){
+      rent <- rent_3b
+    }
+  })
+  
+  rent4 <- reactive({
+    if (input$bedroom3 =="All"){
+      rent <- rent_all_all
+    }
+    else if (input$bedroom3 =="Studio"){
+      rent <- rent_studio_all
+    }
+    else if (input$bedroom3 =="One Bedroom"){
+      rent <- rent_1b_all
+    }
+    else if (input$bedroom3 =="Two Bedroom"){
+      rent <- rent_2b_all
+    }
+    else if (input$bedroom3 =="Three Bedroom+"){
+      rent <- rent_3b_all
+    }
+  })
+  
   invent <- reactive({
     if (input$bedroom =="All"){
       invent <- invent_all
@@ -409,23 +462,34 @@ server = function(input, output) {
       input$date%>%format("%B, %Y")%>%as.character()
     })
     
-    output$author <- renderUI({
-      HTML('<br>
+   
+    output$preface <- renderUI({
+      HTML("<br><center><p style='font-size:18px;font-family:Lucida Sans Unicode'>We use multiple datasets of rental information of Manhattan, NY, to closely
+      examine several different aspects of these apartments. Hopefully, this 
+      website can help future renters to get a clear picture of the overall rental 
+      market in Manhattan, NY, and select the one that suits them the most with ease.</p><br>
+      <i><h4 style='font-weight:bold;font-color:black;'>OVERVIEW</h4></i>
+      <p style='font-size:18px;font-family:Lucida Sans Unicode'>Under the overview tab, renters can access the median rent price of different neighborhoods
+      and different room types across time. Users can also find the price trends of every neighborhood in
+      Manhattan under the neighborhood tab.</p> <br>
+      <i><h4 style='font-weight:bold;font-color:black;'>TIME SERIES</h4></i>
+      <p style='font-size:18px;font-family:Lucida Sans Unicode'>The time series tab includes average monthly rent in Manhattan in a 
+       selected year and a comparison between Manhattan and other boroughs in NYC with regard to rent price. </p> <br>
+       <i><h4 style='font-weight:bold;font-color:black;'>RENTERS</h4></i>
+      <p style='font-size:18px;font-family:Lucida Sans Unicode'>The renters tab contains two sub-tabs. The characteristics tab contains rental housing characteristics and renter
+      characteristics. The review tab includes text analysis of renter reviews.</p> <br>
+       <i><h4 style='font-weight:bold;font-color:black;'>CONDO</h4></i>
+      <p style='font-size:18px;font-family:Lucida Sans Unicode'>
+      The condo tab also contains two sub-tabs. The summary tab shows a
+      comparison between the rental per square feet value of condos and cooperatives. The detail tab includes 
+      two leaflet maps that displays all the condos and cooperatives valued by NY State government in Manhattan.</p>
+      <br>
+      <a href='https://github.com/QMSS-G5063-2020/Group_E_NYCRental'>Link to Github</a>
       <br>
       <br>
-      <h3 "font-weight:bold; color:black; font-family:Impact;">Authors</h3>
-           Group E <br>Chuze Zhang  cz2581@columbia.edu <br>Xiaoshu Xu  xx2337@columbia.edu <br>Zian He  zh2411@columbia.edu <br>Yingtong Zhou  yz3667@columbia.edu')
-    })
-    
-    output$preface <- renderText({
-      ("We use multiple datasets of rental information of Manhattan, NY, to closely\n
-      examine several different aspects of these apartments. Hopefully, this\n 
-      website can help future renters to get a clear picture of the overall rental\n 
-      market in Manhattan, NY, and select the one that suits them the most with ease.\n
-      In OVERVIEW, future renters can access the median rent of different neighborhoods\n
-      and across time. Median rent of different room types are available in the ROOM\n
-      TYPE section. The RENTER tab contains rental housing characteristics and renter\n
-      characteristics. The REVIEW tab includes text analysis of renter reviews."                   
+      <a href='https://www.loom.com/share/e4a12b9731c24d59a47b34f852d64aad'>Link to Presentation</a>
+      <br>
+           </p></center>"                   
               )
     })
     
@@ -522,8 +586,8 @@ server = function(input, output) {
     output$nycstreet <- renderUI({
       HTML('<br>
       <br>
-      <br>
-           <img src="nycstreet.png" style="width:380px;height:27s0px;"> <br> 
+           <center><img src="nycb.png" style="width:340px;height:340px;
+  position:relative"></center> <br> 
            ')
     })
     
@@ -535,7 +599,7 @@ server = function(input, output) {
     })
     
     output$condo <- renderUI({
-      HTML("<h2 style = 'font-weight:bold; color:black'>Year Built & Gross Income Per square 
+      HTML("<h2 style = 'font-weight:bold; color:black'>Year Built & Market value Per square 
            Feet </h2>
            <br>
            <h4 style = 'font-weight:bold; color:black'>Condominium</h4>
@@ -544,94 +608,143 @@ server = function(input, output) {
            <img src='condo2.png' style='width:650px;height:450px;'>")
     })
     
-    plotdata <- reactive({
-      temp <- subset(average,average$year==input$input1)
-      temp$label <- paste0(temp$year,'/',temp$month)
-      temp
+    average <- reactive({
+      rent_t <-rent3()
+      year_data <- rent_t[,c(2,4:126)]
+      plotdata_month <- year_data%>%gather(time,value,-Borough)
+      plotdata_month$time <- gsub("X","",plotdata_month$time)
+      
+      plotdata_month$month <- lapply(plotdata_month$time,function(x){
+        temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+        temp[2]
+      })
+      
+      plotdata_month$year <- lapply(plotdata_month$time,function(x){
+        temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+        temp[1]
+      })
+      plotdata_month$month <- as.numeric(plotdata_month$month)
+      plotdata_month$year <- as.numeric(plotdata_month$year)
+      
+      average <- plotdata_month %>% group_by(year,month,Borough) %>% 
+        summarise(price = mean(value,na.rm = TRUE))
+      
+      average[average==""] <- NA
+      average <- na.omit(average)
+      
+      average
     })
     
+    average2 <- reactive({
+      rent_t <-rent4()
+      year_data <- rent_t[,c(2,4:126)]
+      plotdata_month <- year_data%>%gather(time,value,-Borough)
+      plotdata_month$time <- gsub("X","",plotdata_month$time)
+      
+      plotdata_month$month <- lapply(plotdata_month$time,function(x){
+        temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+        temp[2]
+      })
+      
+      plotdata_month$year <- lapply(plotdata_month$time,function(x){
+        temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+        temp[1]
+      })
+      plotdata_month$month <- as.numeric(plotdata_month$month)
+      plotdata_month$year <- as.numeric(plotdata_month$year)
+      
+      average <- plotdata_month %>% group_by(year,month,Borough) %>% 
+        summarise(price = mean(value,na.rm = TRUE))
+      
+      average[average==""] <- NA
+      average <- na.omit(average)
+      
+      average
+    })
+    
+    
     output$plot1 <- renderPlot({
-      plotdata1 <-plotdata()
-      ggplot(plotdata1,aes(month,price))+geom_bar(stat = "identity",fill="skyblue")+
-        scale_x_continuous(breaks = plotdata1$month,labels = plotdata1$label)+xlab("")+
-        theme(axis.text.x = element_text(angle =45))
+      
+      average <- average()
+      
+      plotdata1 <- subset(average,average$year==input$input1)
+      plotdata1$label <- paste0(plotdata1$year,'/',plotdata1$month)
+      
+      titles <- paste0('Mean Rent Price in ',input$input1)
+      
+      ggplot(plotdata1, aes(x = month, y = price))+ 
+        geom_line() + geom_point(size=2.5, color="orangered") + 
+        theme_fivethirtyeight()+scale_x_continuous('Date',breaks = seq(1,12,1), 
+                                                  label= c("Jan", "Feb","Mar","Apr","May","Jun","Jul","Aug", 
+                                                           "Sept","Oct","Nov","Dec") )+
+        geom_text(aes(label= sprintf("$%s", round(price,0))), vjust=-0.6) +  
+        xlab("Date") + ylab("Average Median Asking") + 
+        ggtitle(titles) +
+        theme(plot.title = element_text(hjust = 0.5, size=14, color="grey25"),
+              panel.grid.minor = element_blank(),panel.background = element_blank(), panel.grid.major.x = element_blank())  
+    })
+    
+    output$plot2 <- renderPlot({
+      
+      average <- average2()
+      
+      temp <- subset(average,average$year==input$input1)
+      titles <- paste0('Borough Comparison ',input$input1)
+      temp <- temp %>% group_by(Borough) %>% summarise(price = mean(price,na.rm = TRUE))
+      ggplot(temp,aes(Borough,price))+geom_bar(stat = "identity",fill="skyblue")+
+        ggtitle(titles)+xlab("Borough")+
+        ylab("Average price")+ theme_fivethirtyeight()+
+        theme(plot.title = element_text(hjust = 0.5, size=14, color="grey25"),
+              panel.grid.minor = element_blank(),panel.background = element_blank())
     })
     
     output$condoleaf <- renderLeaflet({
-      geo_condo <- condo%>%
-        filter(!is.na(Latitude))
       
-      content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
-                        "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
-                        "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
-                        "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
-      
-      pal = colorFactor("Set1", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
-      color_neighborhood = pal(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
       
       map_condo <- leaflet(geo_condo)%>%
         addTiles() %>%  
-        addCircles(lng = ~Longitude, 
+        addCircleMarkers(lng = ~Longitude, 
                    lat = ~Latitude,
-                   popup = content1)
+                   popup = content1,
+                   color = color_neighborhood1,
+                   clusterOptions = markerClusterOptions())
       map_condo
     })
     
     output$condoleaf2 <- renderLeaflet({
-      geo_coop <- coop%>%
-        filter(!is.na(Latitude))
-      
-      content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
-                        "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
-                        "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
-                        "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
-      
       
       map_coop <- leaflet(geo_coop)%>%
         addTiles() %>%  
-        addCircles(lng = ~Longitude, 
+        addCircleMarkers(lng = ~Longitude, 
                    lat = ~Latitude,
-                   popup = content2)
+                   popup = content2,
+                   color = color_neighborhood2, 
+                   clusterOptions = markerClusterOptions())
       
       map_coop
       
     })
     
     output$condoleaf3<-renderUI({
-      geo_condo <- condo%>%
-        filter(!is.na(Latitude))
-      
-      content1 <- paste("Address:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Address,"<br/>",
-                        "Neighborhood:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
-                        "Building Classification:",geo_condo$COMPARABLE.RENTAL.1.Building.Classification,"<br/>",
-                        "Rental per SqFt:",geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Market.Value.per.SqFt,"<br/>")
-      
-      pal = colorFactor("Set1", domain = geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
-      color_neighborhood = pal(geo_condo$MANHATTAN.CONDOMINIUMS.COMPARABLE.PROPERTIES.Neighborhood)
-      
+
       map_condo <- leaflet(geo_condo)%>%
         addTiles() %>%  
-        addCircles(lng = ~Longitude, 
+        addCircleMarkers(lng = ~Longitude, 
                    lat = ~Latitude,
-                   popup = content1)
-      geo_coop <- coop%>%
-        filter(!is.na(Latitude))
-      
-      content2 <- paste("Address:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Address,"<br/>",
-                        "Neighborhood:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Neighborhood,"<br/>",
-                        "Building Classification:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Building.Classification,"<br/>",
-                        "Rental per SqFt:",geo_coop$MANHATTAN.COOPERATIVES.COMPARABLE.PROPERTIES.Gross.Income.per.SqFt,"<br/>")
+                   popup = content1,
+                   color = color_neighborhood1,
+                   clusterOptions = markerClusterOptions())
       
       
       map_coop <- leaflet(geo_coop)%>%
         addTiles() %>%  
-        addCircles(lng = ~Longitude, 
+        addCircleMarkers(lng = ~Longitude, 
                    lat = ~Latitude,
-                   popup = content2)
+                   popup = content2,
+                   color = color_neighborhood2,
+                   clusterOptions = markerClusterOptions())
       
       sync(map_condo, map_coop)
-      
-      
       
     })
     
@@ -666,15 +779,6 @@ server = function(input, output) {
       
     })
     
-    #getPage<-function() {
-      #return(includeHTML("DV_GP_HC.html"))
-    #}
-    #output$hc<-renderUI({getPage()})
-    
-    #getPage2<-function() {
-      #return(includeHTML("DV_GP_RR.html"))
-    #}
-    #output$rr<-renderUI({getPage2()})
 
 }
 
