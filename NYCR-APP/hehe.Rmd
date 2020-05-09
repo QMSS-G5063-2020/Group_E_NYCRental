@@ -1,0 +1,140 @@
+---
+title: "HW 01"
+author: "Chuze Zhang"
+date: "2020-2-26"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
+library(knitr)
+knitr::opts_chunk$set(cache = FALSE)
+opts_chunk$set(fig.path="images/") 
+options(digits=8)
+opts_chunk$set(warning=FALSE, message = FALSE)
+```
+
+```{r}
+library(sjPlot)
+alme <- readRDS("almighty2.Rda")
+colnames(alme) = c('id', "Overall", "numVotes", "Male_rating", "Female_rating", "Bechdel", "MPAA", "Budget", "Genre", "scifi", "war", "romance", "action", "drama", "adventure", "horror", "western", "comedy", "crime", "fantacy", "prefer")
+alme$Budget<-alme$Budget/1000000
+
+m5 <- lm(Male_rating ~ Bechdel +  MPAA + Budget + numVotes + drama + romance + scifi + war + horror + adventure, data = alme)
+m7 <- lm(Female_rating ~ Bechdel +  MPAA + Budget + numVotes + drama + romance + scifi + war + horror + adventure, data = alme)
+summary(m7)
+tab_model(m5, m7)
+```
+
+```{r}
+m1 <- glm(prefer ~ Bechdel , data = alme, family = 'binomial')
+summary(m1)
+tab_model(m1)
+```
+
+
+```{r}
+m3 <- glm(prefer ~ Bechdel + MPAA + Budget + numVotes + drama + romance + scifi + war + horror + adventure, data = alme, family = 'binomial')
+summary(m3)
+tab_model(m3)
+```
+
+
+```{r}
+library(dplyr)
+library(sjPlot)
+mm <- alme%>%select(-Female_rating)
+colnames(mm)[4] = 'rating'
+mm$gender <- ' male'
+
+nn <- alme%>%select(-Male_rating)
+colnames(nn)[4] = 'rating'
+nn$gender <- 'female'
+
+aa <- rbind(mm,nn)
+
+m10 <- lm(rating ~ Bechdel*gender+  MPAA + Budget + numVotes + drama + romance + scifi + war + horror + adventure, data = aa)
+tab_model(m10)
+```
+
+
+```{r}
+clean_up_rent<-function(rent){
+
+  rent <- rent%>%subset(areaType == "neighborhood"&Borough=="Manhattan")
+
+  rent$areaName <- rent$areaName%>%as.character()
+  rent$areaName[rent$areaName == "Soho"] = "SoHo"
+  rent$areaName[rent$areaName == "Central Harlem"] = "Harlem"
+  rent$areaName[rent$areaName == "Flatiron"] = "Flatiron District"
+  rent$areaName[rent$areaName == "Gramercy Park"] = "Gramercy"
+  rent$areaName[rent$areaName == "Stuyvesant Town/PCV"] = "Stuyvesant Town"
+  rent$areaName[rent$areaName == "Midtown West"] = "Hell's Kitchen"
+  rent$areaName[rent$areaName == "Midtown"] = "Theater District"
+  rent$areaName[rent$areaName == "Midtown East"] = "Midtown"
+  kp<-rep(rent[rent$areaName == "Midtown South",])%>%as.data.frame()
+  rent$areaName[rent$areaName == "Midtown South"] = "Murray Hill"
+
+  kp$areaName <- as.character(kp$areaName)
+  kp$areaName <- "Kips Bay"
+  rent <- rbind(rent, kp)
+  return (rent)
+
+}
+rent_all <- read.csv("medianRent.csv")
+rent_all<-clean_up_rent(rent_all)
+
+rent_studio <- read.csv("medianAskingRent_Studio.csv")
+rent_studio<-clean_up_rent(rent_studio)
+
+rent_1b <- read.csv("medianAskingRent_OneBd.csv")
+rent_1b<-clean_up_rent(rent_1b)
+
+
+rent_2b <- read.csv("medianAskingRent_TwoBd.csv")
+rent_2b<-clean_up_rent(rent_2b)
+
+
+rent_3b <- read.csv("medianAskingRent_ThreePlusBd.csv")
+rent_3b <-clean_up_rent(rent_3b)
+
+rent_all
+
+year_data <- rent_all[,c(2,4:126)]
+plotdata_month <- year_data%>%gather(time,value,-Borough)
+plotdata_month$time <- gsub("X","",plotdata_month$time)
+
+plotdata_month$month <- lapply(plotdata_month$time,function(x){
+  temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+  temp[2]
+})
+
+plotdata_month$year <- lapply(plotdata_month$time,function(x){
+  temp <- unlist(strsplit(x,split = ".",fixed = TRUE))
+  temp[1]
+})
+plotdata_month$month <- as.numeric(plotdata_month$month)
+plotdata_month$year <- as.numeric(plotdata_month$year)
+
+average <- plotdata_month %>% group_by(year,month,Borough) %>% 
+  summarise(price = mean(value,na.rm = TRUE))
+
+average[average==""] <- NA
+average <- na.omit(average)
+
+average
+```
+
+
+
+
+
+
+
+

@@ -5,6 +5,6 @@ account: c-z2581
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2240856
-bundleId: 3103892
+bundleId: 3125103
 url: https://c-z2581.shinyapps.io/nycrental-app/
-when: 1588637409.58458
+when: 1589053043.30389
